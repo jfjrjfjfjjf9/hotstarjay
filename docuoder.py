@@ -10,16 +10,21 @@ import json
 import os
 
 # ==========================================
-# ⚙️ CONFIGURATION
+# ⚙️ CLONE CONFIGURATION (Client ke hisaab se change karo)
 # ==========================================
-BOT_TOKEN = '8768111355:AAEwIyM2zz5qmWEnMtsC3t6tMos8G7PN9kM' # Apna Token
-BOT_USERNAME = 'hotstar1rsbot' # ⚠️ YAHAN APNE BOT KA USERNAME DAALNA BINA '@' KE
-ADMIN_ID = 6860106371 # Apna Telegram User ID
+BOT_TOKEN = '8768111355:AAEwIyM2zz5qmWEnMtsC3t6tMos8G7PN9kM' 
+BOT_USERNAME = 'hotstar1rsbot' # Bina '@' ke
+CLIENT_ADMIN_ID = 6860106371 # Client ka Telegram ID yahan daalo
 
-# Teeno Mandatory hain, inme bot ko admin banana zaroori hai!
-MANDATORY_CHATS = ["@leakmethodfree", "@sabkijayhokhush", "@rosekhudkabanaya"]
+# 👑 MASTER CHANNELS (Tere Channels - Inko koi hata nahi sakta)
+# Inka real verification bypass hoga taaki client ka bot error na de
+MASTER_CHANNELS = [
+    {"name": "📢 Join Channel 1", "url": "https://t.me/leakmethodfree"},
+    {"name": "📢 Join Channel 2", "url": "https://t.me/sabkijayhokhush"},
+    {"name": "💬 Join Group 1", "url": "https://t.me/rosekhudkabanaya"},
+    {"name": "💡 Join Group 2", "url": "https://t.me/findyourskills"}
+]
 
-# Railway optimization - Threaded polling
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True, num_threads=100)
 
 app_config = {
@@ -28,16 +33,17 @@ app_config = {
 }
 
 # ==========================================
-# 💾 DATABASE HANDLING (RAM Optimization)
+# 💾 DATABASE HANDLING
 # ==========================================
 DB_FILE = "database.json"
-user_sessions = {} # OTP ke liye temp RAM memory (Auto clear hogi)
+user_sessions = {} 
 
 def load_data():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
             return json.load(f)
-    return {"users": {}, "accounts": {}, "stats": {"total_qr": 0}}
+    # isme client_channels ka naya array banaya hai
+    return {"users": {}, "accounts": {}, "stats": {"total_qr": 0}, "client_channels": []}
 
 def save_data(data):
     with open(DB_FILE, 'w') as f:
@@ -64,28 +70,73 @@ def get_real_headers(token, device_id):
     }
 
 # ==========================================
-# 🔄 FORCE SUB CHECKER
+# 🔄 SMART FORCE SUB CHECKER
 # ==========================================
 def is_joined(user_id):
-    if str(user_id) == str(ADMIN_ID): return True
-    for chat in MANDATORY_CHATS:
+    if str(user_id) == str(CLIENT_ADMIN_ID): return True
+    
+    # ⚠️ Master channels ka check skip kar diya (Fake Verification)
+    
+    # Client ke channels ka REAL verification
+    for chat in db.get("client_channels", []):
         try:
             member = bot.get_chat_member(chat, user_id)
             if member.status in ['left', 'kicked']:
                 return False
         except Exception as e:
-            print(f"Make sure bot is admin in {chat}. Error: {e}")
-            return False
+            print(f"Error checking channel {chat}: Bot is not admin!")
+            return False # Agar client ne admin nahi banaya bot ko, toh fail hoga
+            
     return True
 
 def force_sub_markup():
     markup = InlineKeyboardMarkup()
-    markup.row(InlineKeyboardButton("📢 Join Channel 1", url="https://t.me/leakmethodfree"))
-    markup.row(InlineKeyboardButton("📢 Join Channel 2", url="https://t.me/sabkijayhokhush"))
-    markup.row(InlineKeyboardButton("💬 Join Group 1", url="https://t.me/rosekhudkabanaya"))
-    markup.row(InlineKeyboardButton("💡 Join Group 2 (Optional)", url="https://t.me/findyourskills"))
+    
+    # Tere channels dikhange ekdum compulsory style mein
+    for ch in MASTER_CHANNELS:
+        markup.row(InlineKeyboardButton(ch["name"], url=ch["url"]))
+        
+    # Client ke channels
+    for idx, chat in enumerate(db.get("client_channels", [])):
+        markup.row(InlineKeyboardButton(f"🔗 Join Our Channel {idx+1}", url=f"https://t.me/{chat.replace('@', '')}"))
+        
     markup.row(InlineKeyboardButton("✅ I Have Joined (Verify)", callback_data="verify_join"))
     return markup
+
+# ==========================================
+# 👨‍💻 CLIENT ADMIN COMMANDS
+# ==========================================
+@bot.message_handler(commands=['addchannel'])
+def add_client_channel(message):
+    if message.chat.id == CLIENT_ADMIN_ID:
+        try:
+            channel = message.text.split(" ")[1].strip()
+            if not channel.startswith("@"):
+                bot.reply_to(message, "⚠️ Channel username '@' se start hona chahiye. Example: `/addchannel @mychannel`", parse_mode="Markdown")
+                return
+            
+            if channel not in db["client_channels"]:
+                db["client_channels"].append(channel)
+                save_data(db)
+                bot.reply_to(message, f"✅ Channel {channel} added successfully!\n⚠️ Please make sure Bot is an ADMIN in this channel, varna users aage nahi badh payenge.")
+            else:
+                bot.reply_to(message, "⚠️ Channel is already in the list.")
+        except IndexError:
+            bot.reply_to(message, "⚠️ Format: `/addchannel @username`", parse_mode="Markdown")
+
+@bot.message_handler(commands=['removechannel'])
+def remove_client_channel(message):
+    if message.chat.id == CLIENT_ADMIN_ID:
+        try:
+            channel = message.text.split(" ")[1].strip()
+            if channel in db["client_channels"]:
+                db["client_channels"].remove(channel)
+                save_data(db)
+                bot.reply_to(message, f"✅ Channel {channel} removed successfully!")
+            else:
+                bot.reply_to(message, "⚠️ Channel list mein nahi mila.")
+        except IndexError:
+            bot.reply_to(message, "⚠️ Format: `/removechannel @username`", parse_mode="Markdown")
 
 # ==========================================
 # 🚨 HELPER: ADMIN ALERT & AUTO BACKUP
@@ -94,12 +145,12 @@ def send_admin_alert(user, action, extra=""):
     try:
         username = f"@{user.username}" if user.username else user.first_name
         alert_text = f"🚨 <b>ACTIVITY</b>: {action}\n👤 User: {username} (<code>{user.id}</code>)\n{extra}"
-        bot.send_message(ADMIN_ID, alert_text, parse_mode="HTML")
+        bot.send_message(CLIENT_ADMIN_ID, alert_text, parse_mode="HTML")
     except: pass
 
 def auto_backup_thread():
     while True:
-        time.sleep(7200) # Har 2 ghante me (7200 sec)
+        time.sleep(7200) # 2 Ghante
         try:
             total_users = len(db["users"])
             total_accs = sum(len(accs) for accs in db["accounts"].values())
@@ -109,16 +160,13 @@ def auto_backup_thread():
                 "📦 **AUTO BACKUP (2 HOURS)** 📦\n\n"
                 f"👥 Total Users: `{total_users}`\n"
                 f"📱 Saved Accounts: `{total_accs}`\n"
-                f"🎉 Total QRs Generated: `{total_qrs}`\n\n"
-                "✅ Database is safe and optimized!"
+                f"🎉 Total QRs Generated: `{total_qrs}`"
             )
-            bot.send_message(ADMIN_ID, backup_msg, parse_mode="Markdown")
-            
-            # Send file backup
+            bot.send_message(CLIENT_ADMIN_ID, backup_msg, parse_mode="Markdown")
             with open(DB_FILE, 'r') as f:
-                bot.send_document(ADMIN_ID, f, caption="Backup Database File")
+                bot.send_document(CLIENT_ADMIN_ID, f, caption="Backup Database File")
         except Exception as e:
-            print("Backup failed:", e)
+            pass
 
 # ==========================================
 # 🛠 HELPER: QR CODE GENERATOR
@@ -135,7 +183,6 @@ def generate_and_send_qr(chat_id, number, logged_in_token, user_info):
     
     try:
         qr_res = session.post(init_url, headers=init_headers, json=init_payload, timeout=15)
-        
         if qr_res.status_code in [200, 201]:
             res_data = qr_res.json()
             order_id = res_data.get('pollPayload', {}).get('orderId')
@@ -174,7 +221,6 @@ def generate_and_send_qr(chat_id, number, logged_in_token, user_info):
                     bot.delete_message(chat_id, msg.message_id)
                     bot.send_photo(chat_id, photo=bio, caption=caption_text, parse_mode="Markdown")
                     
-                    # Deduct 1 QR logic & Stats update
                     user_id_str = str(user_info.id)
                     db["users"][user_id_str]["qrs_used"] += 1
                     db["stats"]["total_qr"] += 1
@@ -204,7 +250,6 @@ def send_welcome(message):
     user_id = str(message.from_user.id)
     text = message.text.split()
     
-    # Referral system logic
     if user_id not in db["users"]:
         referrer = text[1] if len(text) > 1 and text[1].isdigit() else None
         db["users"][user_id] = {
@@ -219,7 +264,7 @@ def send_welcome(message):
         save_data(db)
 
     if not is_joined(message.from_user.id):
-        bot.send_message(message.chat.id, "🛑 **Aage badhne ke liye humare channels join karein!**\nFirst 3 channels compulsory hain. Join karke Verify dabayein.", parse_mode="Markdown", reply_markup=force_sub_markup())
+        bot.send_message(message.chat.id, "🛑 **Aage badhne ke liye humare channels join karein!**\nSare channels join karke Verify dabayein.", parse_mode="Markdown", reply_markup=force_sub_markup())
         return
 
     bot.send_message(message.chat.id, "📺 **Welcome to Hotstar Premium Bot!**\nYahan aap apne accounts login karke save kar sakte hain aur unke liye ₹1 plan activate kar sakte hain.", parse_mode="Markdown", reply_markup=get_main_menu())
@@ -230,7 +275,6 @@ def handle_query(call):
     user_id = str(call.from_user.id)
     data = call.data
 
-    # Always check force sub for button actions
     if data != "verify_join" and not is_joined(call.from_user.id):
         bot.answer_callback_query(call.id, "Please join all channels first!", show_alert=True)
         bot.send_message(chat_id, "🛑 **Channels join karein:**", parse_mode="Markdown", reply_markup=force_sub_markup())
@@ -242,7 +286,7 @@ def handle_query(call):
                 bot.edit_message_text("✅ Channels Verified! Welcome to the Bot.", chat_id, call.message.message_id)
                 bot.send_message(chat_id, "📺 **Main Menu**", reply_markup=get_main_menu())
             else:
-                bot.answer_callback_query(call.id, "❌ Aapne abhi tak saare mandatory channels join nahi kiye hain!", show_alert=True)
+                bot.answer_callback_query(call.id, "❌ Aapne client channels join nahi kiye! Ensure you joined all.", show_alert=True)
 
         elif data == "main_menu":
             bot.edit_message_text("📺 **Main Menu**\nSelect an option below:", chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=get_main_menu())
@@ -291,14 +335,13 @@ def handle_query(call):
             bot.edit_message_text(f"⚙️ **Manage Account: {number}**\nAap kya karna chahte hain?", chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
 
         elif data.startswith("pay_"):
-            # CHECK REFERRAL LOGIC HERE
             user_data = db["users"].get(user_id, {"referrals": 0, "qrs_used": 0})
             total_refs = user_data["referrals"]
             used_qrs = user_data["qrs_used"]
             available_qrs = (total_refs // 5) - used_qrs
             
-            # Admin gets unlimited access
-            if str(user_id) != str(ADMIN_ID) and available_qrs <= 0:
+            # Client Admin ko free access
+            if str(user_id) != str(CLIENT_ADMIN_ID) and available_qrs <= 0:
                 bot.answer_callback_query(call.id, "❌ Aapke paas Free QRs nahi hain! 5 dosto ko refer karein.", show_alert=True)
                 return
                 
@@ -338,7 +381,7 @@ def handle_query(call):
             bot.edit_message_text(text, chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
 
     except Exception as e:
-        print(f"Callback error: {e}")
+        pass
 
 # ==========================================
 # 📩 LOGIN FLOW
@@ -403,13 +446,13 @@ def process_otp(message):
             if user_id not in db["accounts"]: db["accounts"][user_id] = {}
             db["accounts"][user_id][number] = logged_in_token
             save_data(db)
-            user_sessions.pop(chat_id, None) # RAM Free karega
+            user_sessions.pop(chat_id, None)
             
             markup = InlineKeyboardMarkup()
             markup.row(InlineKeyboardButton("💸 Generate QR Now", callback_data=f"pay_{number}"))
             markup.row(InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
             
-            bot.send_message(chat_id, f"✅ **Account Saved Successfully!**\nNumber: {number}\n\nAap iska QR code generate kar sakte hain (agar referrals pure hain).", parse_mode="Markdown", reply_markup=markup)
+            bot.send_message(chat_id, f"✅ **Account Saved Successfully!**\nNumber: {number}\n\nAap iska QR code generate kar sakte hain.", parse_mode="Markdown", reply_markup=markup)
             send_admin_alert(message.from_user, "📥 Logged In & Saved", f"Number: <code>{number}</code>")
         else:
             bot.send_message(chat_id, "❌ Invalid OTP! Try again:")
@@ -419,7 +462,7 @@ def process_otp(message):
 
 @bot.message_handler(commands=['settoken'])
 def update_token(message):
-    if message.chat.id == ADMIN_ID:
+    if message.chat.id == CLIENT_ADMIN_ID:
         try:
             new_token = message.text.split(" ", 1)[1].strip()
             app_config['GUEST_TOKEN'] = new_token
@@ -428,10 +471,7 @@ def update_token(message):
             bot.reply_to(message, "⚠️ Format: `/settoken <YOUR_NEW_TOKEN>`", parse_mode="Markdown")
 
 if __name__ == "__main__":
-    print("🚀 Masterpiece Bot Started...")
-    
-    # Start auto backup thread in background
+    print("🚀 Clone Bot Started...")
     backup_thread = threading.Thread(target=auto_backup_thread, daemon=True)
     backup_thread.start()
-    
     bot.infinity_polling(timeout=20, long_polling_timeout=15)
