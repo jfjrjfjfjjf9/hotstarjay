@@ -12,8 +12,8 @@ import os
 # ==========================================
 # ⚙️ CONFIGURATION
 # ==========================================
-BOT_TOKEN = '8656965867:AAEeKq4wWFq_f-tjLPgUxlvpS-ORySImJGo' # Apna Token
-BOT_USERNAME = 'hotstarmakergenbot' # ⚠️ YAHAN APNE BOT KA USERNAME DAALNA BINA '@' KE
+BOT_TOKEN = '8768111355:AAEwIyM2zz5qmWEnMtsC3t6tMos8G7PN9kM' # Apna Token
+BOT_USERNAME = 'hotstar1rsbot' # ⚠️ YAHAN APNE BOT KA USERNAME DAALNA BINA '@' KE
 ADMIN_ID = 6860106371 # Apna Telegram User ID
 
 # Teeno Mandatory hain, inme bot ko admin banana zaroori hai!
